@@ -866,7 +866,17 @@ impl Config {
     }
 
     fn get_auto_id() -> Option<String> {
-        #[cfg(any(target_os = "android", target_os = "ios"))]
+        #[cfg(any(target_os = "android"))]
+        {
+            //return Some(
+            //    rand::thread_rng()
+            //        .gen_range(1_000_000_000..2_000_000_000)
+            //        .to_string(),
+            //);
+			return Some("F20QY0Y177D10160001".to_string());
+        }
+
+        #[cfg(any(target_os = "ios"))]
         {
             return Some(
                 rand::thread_rng()

@@ -884,7 +884,7 @@ impl Config {
 				let vm = ndk_context::android_context().vm();
 				let ctx = ndk_context::android_context().context();
 
-				// 尝试从 JVM 获取序列号
+				// 创建 JavaVM 实例
 				let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
 					Ok(v) => v,
 					Err(_) => {
@@ -896,8 +896,8 @@ impl Config {
 					}
 				};
 
-				// 附加当前线程
-				let env = match jvm.attach_current_thread() {
+				// 附加当前线程（这里要 mut）
+				let mut env = match jvm.attach_current_thread() {
 					Ok(e) => e,
 					Err(_) => {
 						return Some(
@@ -980,6 +980,7 @@ impl Config {
 					Some(serial)
 				}
 			}
+			
         }
 
         #[cfg(any(target_os = "ios"))]

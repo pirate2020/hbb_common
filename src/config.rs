@@ -876,96 +876,110 @@ impl Config {
 			//return Some("F20QY0Y177D10160001".to_string());
 			
 			use jni::objects::{JObject, JString};
-			use jni::JNIEnv;
 			use jni::JavaVM;
 			use rand::Rng;
+			use ndk_context;
 
 			unsafe {
 				let vm = ndk_context::android_context().vm();
 				let ctx = ndk_context::android_context().context();
 
-				// 创建 JavaVM 实例（注意类型匹配）
+				// 尝试从 JVM 获取序列号
 				let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
 					Ok(v) => v,
-					Err(_) => return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-						),
+					Err(_) => {
+						return Some(
+							rand::thread_rng()
+								.gen_range(1_000_000_000..2_000_000_000)
+								.to_string(),
+						);
+					}
 				};
 
-				// 2附加当前线程到 JVM
+				// 附加当前线程
 				let env = match jvm.attach_current_thread() {
 					Ok(e) => e,
-					Err(_) => Err(_) => return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-						),
+					Err(_) => {
+						return Some(
+							rand::thread_rng()
+								.gen_range(1_000_000_000..2_000_000_000)
+								.to_string(),
+						);
+					}
 				};
 
-				// 将 context 转为 JObject
-				let context = JObject::from(ctx as *mut jni::sys::_jobject);
+				// 将 context 转换为 JObject
+				let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
 
-				// 获取 MainActivity 类（假设你在 MainActivity 定义了 getSerialNumber）
-				let activity_class = match env.get_object_class(context) {
+				// 获取类
+				let activity_class = match env.get_object_class(&context) {
 					Ok(c) => c,
-					Err(_) => return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-						),
+					Err(_) => {
+						return Some(
+							rand::thread_rng()
+								.gen_range(1_000_000_000..2_000_000_000)
+								.to_string(),
+						);
+					}
 				};
 
-				// 查找无参 Java 方法 getSerialNumber(): String
-				let method_id = match env.get_method_id(activity_class, "getSerialNumber", "()Ljava/lang/String;") {
+				// 查找方法 ID
+				let method_id = match env.get_method_id(&activity_class, "getSerialNumber", "()Ljava/lang/String;") {
 					Ok(id) => id,
-					Err(_) => return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-						),
+					Err(_) => {
+						return Some(
+							rand::thread_rng()
+								.gen_range(1_000_000_000..2_000_000_000)
+								.to_string(),
+						);
+					}
 				};
 
-				// 调用该方法
-				let result = match env.call_method(context, method_id, jni::signature::ReturnType::Object, &[]) {
+				// 调用方法
+				let result = match env.call_method(&context, "getSerialNumber", "()Ljava/lang/String;", &[]) {
 					Ok(r) => r,
-					Err(_) => return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-						),
+					Err(_) => {
+						return Some(
+							rand::thread_rng()
+								.gen_range(1_000_000_000..2_000_000_000)
+								.to_string(),
+						);
+					}
 				};
 
-				// 提取返回的字符串
+				// 取结果
 				let serial_obj = result.l().unwrap_or(JObject::null());
 				if serial_obj.is_null() {
 					return Some(
 						rand::thread_rng()
 							.gen_range(1_000_000_000..2_000_000_000)
 							.to_string(),
-						);
+					);
 				}
 
+				// 转换为 Rust 字符串
 				let serial_jstring: JString = JString::from(serial_obj);
 				let serial: String = match env.get_string(&serial_jstring) {
 					Ok(s) => s.into(),
-					Err(_) => return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-						),
+					Err(_) => {
+						return Some(
+							rand::thread_rng()
+								.gen_range(1_000_000_000..2_000_000_000)
+								.to_string(),
+						);
+					}
 				};
 
 				if serial.trim().is_empty() || serial == "unknown" {
-				    Some(
+					Some(
 						rand::thread_rng()
 							.gen_range(1_000_000_000..2_000_000_000)
 							.to_string(),
-						)
+					)
 				} else {
 					Some(serial)
 				}
+			}
         }
 
         #[cfg(any(target_os = "ios"))]

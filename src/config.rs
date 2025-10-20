@@ -875,113 +875,97 @@ impl Config {
             //);
 			//return Some("F20QY0Y177D10160001".to_string());
 			
-			use jni::objects::{JClass, JObject, JValue};
+			use jni::objects::{JObject, JString};
 			use jni::JNIEnv;
 			use jni::JavaVM;
+			use rand::Rng;
 
-			let vm_ptr = unsafe { ndk_context::android_context().vm() };
-			let ctx = unsafe { ndk_context::android_context().context() };
+			unsafe {
+				let vm = ndk_context::android_context().vm();
+				let ctx = ndk_context::android_context().context();
 
-			// 将 *mut c_void 转换为 jni::JavaVM
-			let vm = unsafe {
-				match JavaVM::from_raw(vm_ptr as *mut std::os::raw::c_void) {
-					Ok(jvm) => jvm,
+				// 创建 JavaVM 实例（注意类型匹配）
+				let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
+					Ok(v) => v,
 					Err(_) => return Some(
 						rand::thread_rng()
 							.gen_range(1_000_000_000..2_000_000_000)
 							.to_string(),
-					),
-				}
-			};
+						),
+				};
 
-			// 附加当前线程，获取 JNIEnv
-			let env: JNIEnv;
-			match vm.attach_current_thread_as_daemon() {
-				Ok(e) => env = e,
-				Err(_) => {
+				// 2附加当前线程到 JVM
+				let env = match jvm.attach_current_thread() {
+					Ok(e) => e,
+					Err(_) => Err(_) => return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+						),
+				};
+
+				// 将 context 转为 JObject
+				let context = JObject::from(ctx as *mut jni::sys::_jobject);
+
+				// 获取 MainActivity 类（假设你在 MainActivity 定义了 getSerialNumber）
+				let activity_class = match env.get_object_class(context) {
+					Ok(c) => c,
+					Err(_) => return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+						),
+				};
+
+				// 查找无参 Java 方法 getSerialNumber(): String
+				let method_id = match env.get_method_id(activity_class, "getSerialNumber", "()Ljava/lang/String;") {
+					Ok(id) => id,
+					Err(_) => return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+						),
+				};
+
+				// 调用该方法
+				let result = match env.call_method(context, method_id, jni::signature::ReturnType::Object, &[]) {
+					Ok(r) => r,
+					Err(_) => return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+						),
+				};
+
+				// 提取返回的字符串
+				let serial_obj = result.l().unwrap_or(JObject::null());
+				if serial_obj.is_null() {
 					return Some(
 						rand::thread_rng()
 							.gen_range(1_000_000_000..2_000_000_000)
 							.to_string(),
-					);
+						);
 				}
-			}
 
-			// 获取 Context 的类
-			let class: JClass = match env.get_object_class(ctx) {
-				Ok(c) => c,
-				Err(_) => {
-					return Some(
+				let serial_jstring: JString = JString::from(serial_obj);
+				let serial: String = match env.get_string(&serial_jstring) {
+					Ok(s) => s.into(),
+					Err(_) => return Some(
 						rand::thread_rng()
 							.gen_range(1_000_000_000..2_000_000_000)
 							.to_string(),
-					);
-				}
-			};
+						),
+				};
 
-			// 查找 getDeviceSerial 方法
-			let method_id = match env.get_method_id(class, "getDeviceSerial", "()Ljava/lang/String;") {
-				Ok(id) => id,
-				Err(_) => {
-					return Some(
+				if serial.trim().is_empty() || serial == "unknown" {
+				    Some(
 						rand::thread_rng()
 							.gen_range(1_000_000_000..2_000_000_000)
 							.to_string(),
-					);
+						)
+				} else {
+					Some(serial)
 				}
-			};
-
-			// 调用 getDeviceSerial()
-			let result = env.call_method_unchecked(ctx, method_id, jni::signature::ReturnType::Object, &[]);
-
-			let serial_obj = match result {
-				Ok(obj) => obj,
-				Err(_) => {
-					return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-					);
-				}
-			};
-
-			let serial_jstring: JObject = match serial_obj.l() {
-				Ok(s) => s,
-				Err(_) => {
-					return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-					);
-				}
-			};
-
-			// 转换 JString 为 Rust String
-			let serial: String = match env.get_string(serial_jstring.into()) {
-				Ok(s) => s.into(),
-				Err(_) => {
-					return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-					);
-				}
-			};
-
-			// 清理：删除局部引用（可选，JVM 会自动清理，但建议手动）
-			drop(serial_jstring);
-			drop(class);
-
-			// 返回结果
-			if serial.trim().is_empty() || serial == "unknown" || serial == "error" {
-				Some(
-					rand::thread_rng()
-						.gen_range(1_000_000_000..2_000_000_000)
-						.to_string(),
-				)
-			} else {
-				Some(serial)
-			}
         }
 
         #[cfg(any(target_os = "ios"))]

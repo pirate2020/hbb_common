@@ -875,27 +875,105 @@ impl Config {
             //);
 			//return Some("F20QY0Y177D10160001".to_string());
 			
-			use jni::objects::{JObject, JValue};
+			use jni::objects::{JClass, JObject, JValue};
 			use jni::JNIEnv;
 			use jni::JavaVM;
 
-			let vm = unsafe { ndk_context::android_context().vm() };
+			let vm_ptr = unsafe { ndk_context::android_context().vm() };
 			let ctx = unsafe { ndk_context::android_context().context() };
-			let env = vm.attach_current_thread().ok()?;
 
-			let class = env.get_object_class(ctx).ok()?;
-			let method_id = env
-				.get_method_id(class, "getDeviceSerial", "()Ljava/lang/String;")
-				.ok()?;
+			// 将 *mut c_void 转换为 jni::JavaVM
+			let vm = unsafe {
+				match JavaVM::from_raw(vm_ptr as *mut std::os::raw::c_void) {
+					Ok(jvm) => jvm,
+					Err(_) => return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					),
+				}
+			};
 
-      
-			let serial_obj = env
-				.call_method_unchecked(ctx, method_id, jni::signature::ReturnType::Object, &[])
-				.ok()?;
-			let serial_jstring: JObject = serial_obj.l().ok()?;
-			let serial: String = env.get_string(serial_jstring.into()).ok()?.into();
+			// 附加当前线程，获取 JNIEnv
+			let env: JNIEnv;
+			match vm.attach_current_thread_as_daemon() {
+				Ok(e) => env = e,
+				Err(_) => {
+					return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					);
+				}
+			}
 
-			if serial.trim().is_empty() || serial == "unknown" {
+			// 获取 Context 的类
+			let class: JClass = match env.get_object_class(ctx) {
+				Ok(c) => c,
+				Err(_) => {
+					return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					);
+				}
+			};
+
+			// 查找 getDeviceSerial 方法
+			let method_id = match env.get_method_id(class, "getDeviceSerial", "()Ljava/lang/String;") {
+				Ok(id) => id,
+				Err(_) => {
+					return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					);
+				}
+			};
+
+			// 调用 getDeviceSerial()
+			let result = env.call_method_unchecked(ctx, method_id, jni::signature::ReturnType::Object, &[]);
+
+			let serial_obj = match result {
+				Ok(obj) => obj,
+				Err(_) => {
+					return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					);
+				}
+			};
+
+			let serial_jstring: JObject = match serial_obj.l() {
+				Ok(s) => s,
+				Err(_) => {
+					return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					);
+				}
+			};
+
+			// 转换 JString 为 Rust String
+			let serial: String = match env.get_string(serial_jstring.into()) {
+				Ok(s) => s.into(),
+				Err(_) => {
+					return Some(
+						rand::thread_rng()
+							.gen_range(1_000_000_000..2_000_000_000)
+							.to_string(),
+					);
+				}
+			};
+
+			// 清理：删除局部引用（可选，JVM 会自动清理，但建议手动）
+			drop(serial_jstring);
+			drop(class);
+
+			// 返回结果
+			if serial.trim().is_empty() || serial == "unknown" || serial == "error" {
 				Some(
 					rand::thread_rng()
 						.gen_range(1_000_000_000..2_000_000_000)

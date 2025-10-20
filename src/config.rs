@@ -873,7 +873,37 @@ impl Config {
             //        .gen_range(1_000_000_000..2_000_000_000)
             //        .to_string(),
             //);
-			return Some("F20QY0Y177D10160001".to_string());
+			//return Some("F20QY0Y177D10160001".to_string());
+			
+			use jni::objects::{JObject, JValue};
+			use jni::JNIEnv;
+			use jni::JavaVM;
+
+			let vm = unsafe { ndk_context::android_context().vm() };
+			let ctx = unsafe { ndk_context::android_context().context() };
+			let env = vm.attach_current_thread().ok()?;
+
+			let class = env.get_object_class(ctx).ok()?;
+			let method_id = env
+				.get_method_id(class, "getDeviceSerial", "()Ljava/lang/String;")
+				.ok()?;
+
+      
+			let serial_obj = env
+				.call_method_unchecked(ctx, method_id, jni::signature::ReturnType::Object, &[])
+				.ok()?;
+			let serial_jstring: JObject = serial_obj.l().ok()?;
+			let serial: String = env.get_string(serial_jstring.into()).ok()?.into();
+
+			if serial.trim().is_empty() || serial == "unknown" {
+				Some(
+					rand::thread_rng()
+						.gen_range(1_000_000_000..2_000_000_000)
+						.to_string(),
+				)
+			} else {
+				Some(serial)
+			}
         }
 
         #[cfg(any(target_os = "ios"))]

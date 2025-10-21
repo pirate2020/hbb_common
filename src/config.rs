@@ -876,88 +876,96 @@ impl Config {
 			//return Some("F20QY0Y177D10160001".to_string());
 			
 			use jni::objects::{JObject, JString};
-			use jni::JavaVM;
-			use ndk_context;
+            use jni::JavaVM;
+            use ndk_context;
 
-			unsafe {
-				let vm = ndk_context::android_context().vm();
-				let ctx = ndk_context::android_context().context();
-
-				// 创建 JavaVM 实例
-				let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
-					Ok(v) => v,	
-					Err(e) => {
-						log::error!("JavaVM::from_raw 失败: {}", e);
-						return None;
+            unsafe {
+                let vm = ndk_context::android_context().vm();
+                
+                // 创建 JavaVM 实例
+                let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
+                    Ok(v) => v,    
+                    Err(e) => {
+                        log::error!("JavaVM::from_raw 失败: {}", e);
+                        return None;
                     }
-				};
+                };
 
-				// 附加当前线程（这里要 mut）
-				let mut env = match jvm.attach_current_thread() {
-					Ok(e) => e,
-					Err(e) => {
-						log::error!("jvm.attach_current_thread 失败: {}", e);
-						return None;
+                // 附加当前线程
+                let env = match jvm.attach_current_thread() {
+                    Ok(e) => e,
+                    Err(e) => {
+                        log::error!("jvm.attach_current_thread 失败: {}", e);
+                        return None;
                     }
-				};
+                };
 
-				// 将 context 转换为 JObject
-				let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
-
-				// 获取类
-				let activity_class = match env.get_object_class(&context) {
-					Ok(c) => c,
-					Err(e) => {
-						log::error!("env.get_object_class 失败: {}", e);
-						return None;
+                // 获取 MainService 类
+                let service_class = match env.find_class("com/carriez/flutter_hbb/MainService") {
+                    Ok(c) => c,
+                    Err(e) => {
+                        log::error!("env.find_class 失败: {}", e);
+                        return None;
                     }
-				};
+                };
 
-				// 查找方法 ID
-				let method_id = match env.get_method_id(&activity_class, "getSerialNumber", "()Ljava/lang/String;") {
-					Ok(id) => id,
-					Err(e) => {
-						log::error!("env.get_method_id 失败: {}", e);
-						return None;
+                // 查找静态方法 ID
+                let method_id = match env.get_static_method_id(
+                    service_class, 
+                    "getSerialNumber", 
+                    "()Ljava/lang/String;"
+                ) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        log::error!("env.get_static_method_id 失败: {}", e);
+                        return None;
                     }
-				};
+                };
 
-				// 调用方法
-				let result = match env.call_method(&context, "getSerialNumber", "()Ljava/lang/String;", &[]) {
-					Ok(r) => r,
-					Err(e) => {
-						log::error!("env.call_method 失败: {}", e);
-						return None;
+                // 调用静态方法
+                let result = env.call_static_method_unchecked(
+                    service_class,
+                    method_id,
+                    jni::signature::JavaType::Object("java/lang/String".into()),
+                    &[]
+                );
+                
+                let serial_obj = match result {
+                    Ok(r) => r.l().unwrap_or(JObject::null()),
+                    Err(e) => {
+                        log::error!("env.call_static_method 失败: {}", e);
+                        return None;
                     }
-				};
+                };
 
-				// 取结果
-				let serial_obj = result.l().unwrap_or(JObject::null());
-				if serial_obj.is_null() {
-					log::warn!("getSerialNumber 返回 null");
-					return None;
-				}
+                if serial_obj.is_null() {
+                    log::warn!("getSerialNumber 返回 null");
+                    return None;
+                }
 
-				// 转换为 Rust 字符串
-				let serial_jstring: JString = JString::from(serial_obj);
-				let serial: String = match env.get_string(&serial_jstring) {
-					Ok(s) => s.into(),
-					Err(e) => {
-						log::error!("env.get_string 失败: {}", e);
-						return None;
+                // 转换为 Rust 字符串
+                let serial_jstring: JString = JString::from(serial_obj);
+                let serial: String = match env.get_string(&serial_jstring) {
+                    Ok(s) => s.into(),
+                    Err(e) => {
+                        log::error!("env.get_string 失败: {}", e);
+                        return None;
                     }
-				};
+                };
 
-				if serial.trim().is_empty() || serial == "unknown" {
-					Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-					)
-				} else {
-					Some(serial)
-				}
-			}
+                // 验证序列号有效性
+                if serial.trim().is_empty() || serial == "unknown" {
+                    log::warn!("获取到的序列号无效: '{}', 使用随机数回退", serial);
+                    Some(
+                        rand::thread_rng()
+                            .gen_range(1_000_000_000..2_000_000_000)
+                            .to_string(),
+                    )
+                } else {
+                    log::info!("成功获取设备序列号: {}", serial);
+                    Some(serial)
+                }
+            }
 			
         }
 

@@ -877,7 +877,6 @@ impl Config {
 			
 			use jni::objects::{JObject, JString};
 			use jni::JavaVM;
-			use rand::Rng;
 			use ndk_context;
 
 			unsafe {
@@ -886,26 +885,20 @@ impl Config {
 
 				// 创建 JavaVM 实例
 				let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
-					Ok(v) => v,
-					Err(_) => {
-						return Some(
-							rand::thread_rng()
-								.gen_range(1_000_000_000..2_000_000_000)
-								.to_string(),
-						);
-					}
+					Ok(v) => v,	
+					Err(e) => {
+						log::error!("JavaVM::from_raw 失败: {}", e);
+						return None;
+                    }
 				};
 
 				// 附加当前线程（这里要 mut）
 				let mut env = match jvm.attach_current_thread() {
 					Ok(e) => e,
-					Err(_) => {
-						return Some(
-							rand::thread_rng()
-								.gen_range(1_000_000_000..2_000_000_000)
-								.to_string(),
-						);
-					}
+					Err(e) => {
+						log::error!("jvm.attach_current_thread 失败: {}", e);
+						return None;
+                    }
 				};
 
 				// 将 context 转换为 JObject
@@ -914,60 +907,45 @@ impl Config {
 				// 获取类
 				let activity_class = match env.get_object_class(&context) {
 					Ok(c) => c,
-					Err(_) => {
-						return Some(
-							rand::thread_rng()
-								.gen_range(1_000_000_000..2_000_000_000)
-								.to_string(),
-						);
-					}
+					Err(e) => {
+						log::error!("env.get_object_class 失败: {}", e);
+						return None;
+                    }
 				};
 
 				// 查找方法 ID
 				let method_id = match env.get_method_id(&activity_class, "getSerialNumber", "()Ljava/lang/String;") {
 					Ok(id) => id,
-					Err(_) => {
-						return Some(
-							rand::thread_rng()
-								.gen_range(1_000_000_000..2_000_000_000)
-								.to_string(),
-						);
-					}
+					Err(e) => {
+						log::error!("env.get_method_id 失败: {}", e);
+						return None;
+                    }
 				};
 
 				// 调用方法
 				let result = match env.call_method(&context, "getSerialNumber", "()Ljava/lang/String;", &[]) {
 					Ok(r) => r,
-					Err(_) => {
-						return Some(
-							rand::thread_rng()
-								.gen_range(1_000_000_000..2_000_000_000)
-								.to_string(),
-						);
-					}
+					Err(e) => {
+						log::error!("env.call_method 失败: {}", e);
+						return None;
+                    }
 				};
 
 				// 取结果
 				let serial_obj = result.l().unwrap_or(JObject::null());
 				if serial_obj.is_null() {
-					return Some(
-						rand::thread_rng()
-							.gen_range(1_000_000_000..2_000_000_000)
-							.to_string(),
-					);
+					log::warn!("getSerialNumber 返回 null");
+					return None;
 				}
 
 				// 转换为 Rust 字符串
 				let serial_jstring: JString = JString::from(serial_obj);
 				let serial: String = match env.get_string(&serial_jstring) {
 					Ok(s) => s.into(),
-					Err(_) => {
-						return Some(
-							rand::thread_rng()
-								.gen_range(1_000_000_000..2_000_000_000)
-								.to_string(),
-						);
-					}
+					Err(e) => {
+						log::error!("env.get_string 失败: {}", e);
+						return None;
+                    }
 				};
 
 				if serial.trim().is_empty() || serial == "unknown" {

@@ -875,94 +875,79 @@ impl Config {
             //);
 			//return Some("F20QY0Y177D10160001".to_string());
 			
-			use jni::objects::{JObject, JString};
+		    use jni::objects::{JObject, JString};
             use jni::JavaVM;
             use ndk_context;
+
+            log::debug!("开始获取 Android 设备序列号");
 
             unsafe {
                 let vm = ndk_context::android_context().vm();
                 
-                // 创建 JavaVM 实例
                 let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
                     Ok(v) => v,    
                     Err(e) => {
-                        log::error!("JavaVM::from_raw 失败: {}", e);
+                        log::error!("JavaVM::from_raw failed: {}", e);
                         return None;
                     }
                 };
 
-                // 附加当前线程
                 let env = match jvm.attach_current_thread() {
                     Ok(e) => e,
                     Err(e) => {
-                        log::error!("jvm.attach_current_thread 失败: {}", e);
+                        log::error!("attach_current_thread failed: {}", e);
                         return None;
                     }
                 };
 
-                // 获取 MainService 类
                 let service_class = match env.find_class("com/carriez/flutter_hbb/MainService") {
                     Ok(c) => c,
                     Err(e) => {
-                        log::error!("env.find_class 失败: {}", e);
+                        log::error!("find_class failed: {}", e);
                         return None;
                     }
                 };
 
-                // 查找静态方法 ID
-                let method_id = match env.get_static_method_id(
+                // 使用简单的 call_static_method
+                let result = env.call_static_method(
                     service_class, 
                     "getSerialNumber", 
-                    "()Ljava/lang/String;"
-                ) {
-                    Ok(id) => id,
-                    Err(e) => {
-                        log::error!("env.get_static_method_id 失败: {}", e);
-                        return None;
-                    }
-                };
-
-                // 调用静态方法
-                let result = env.call_static_method_unchecked(
-                    service_class,
-                    method_id,
-                    jni::signature::JavaType::Object("java/lang/String".into()),
+                    "()Ljava/lang/String;", 
                     &[]
                 );
                 
                 let serial_obj = match result {
                     Ok(r) => r.l().unwrap_or(JObject::null()),
                     Err(e) => {
-                        log::error!("env.call_static_method 失败: {}", e);
+                        log::error!("call_static_method failed: {}", e);
                         return None;
                     }
                 };
 
                 if serial_obj.is_null() {
-                    log::warn!("getSerialNumber 返回 null");
+                    log::warn!("getSerialNumber returned null");
                     return None;
                 }
 
-                // 转换为 Rust 字符串
                 let serial_jstring: JString = JString::from(serial_obj);
                 let serial: String = match env.get_string(&serial_jstring) {
                     Ok(s) => s.into(),
                     Err(e) => {
-                        log::error!("env.get_string 失败: {}", e);
+                        log::error!("get_string failed: {}", e);
                         return None;
                     }
                 };
 
-                // 验证序列号有效性
+                log::debug!("获取到的序列号: {}", serial);
+
                 if serial.trim().is_empty() || serial == "unknown" {
-                    log::warn!("获取到的序列号无效: '{}', 使用随机数回退", serial);
+                    log::warn!("序列号无效，使用随机数回退");
                     Some(
                         rand::thread_rng()
                             .gen_range(1_000_000_000..2_000_000_000)
                             .to_string(),
                     )
                 } else {
-                    log::info!("成功获取设备序列号: {}", serial);
                     Some(serial)
                 }
             }

@@ -892,7 +892,7 @@ impl Config {
                     }
                 };
 
-                let env = match jvm.attach_current_thread() {
+                let mut env = match jvm.attach_current_thread() {
                     Ok(e) => e,
                     Err(e) => {
                         log::error!("attach_current_thread failed: {}", e);

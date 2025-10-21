@@ -883,7 +883,7 @@ impl Config {
 
             unsafe {
                 let vm = ndk_context::android_context().vm();
-                let context = ndk_context::android_context().context(); // <-- 获取 Activity 对象
+                let ctx = ndk_context::android_context().context(); 
 
                 let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
                     Ok(v) => v,

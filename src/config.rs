@@ -901,12 +901,15 @@ impl Config {
                     }
                 };
 
-                // 调用 MainActivity 的实例方法 getSerialNumber()
+                //将 context 指针转换为 JObject
+                let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
+
+                // 调用 MainActivity 的实例方法
                 let result = env.call_method(
-                    context,                           // <--- Activity 对象
-                    "getSerialNumber",                 // 方法名
-                    "()Ljava/lang/String;",            // 签名
-                    &[],                               // 参数为空
+                    context,                          // 现在是 JObject，不是 *mut c_void 了
+                    "getSerialNumber", 
+                    "()Ljava/lang/String;", 
+                    &[],
                 );
 
                 let serial_obj = match result {

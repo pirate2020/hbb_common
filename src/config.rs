@@ -883,9 +883,10 @@ impl Config {
 
             unsafe {
                 let vm = ndk_context::android_context().vm();
-                
+                let context = ndk_context::android_context().context(); // <-- 获取 Activity 对象
+
                 let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
-                    Ok(v) => v,    
+                    Ok(v) => v,
                     Err(e) => {
                         log::error!("JavaVM::from_raw failed: {}", e);
                         return None;
@@ -900,32 +901,24 @@ impl Config {
                     }
                 };
 
-                let service_class = match env.find_class("com/carriez/flutter_hbb/MainService") {
-                    Ok(c) => c,
-                    Err(e) => {
-                        log::error!("find_class failed: {}", e);
-                        return None;
-                    }
-                };
-
-                // 使用简单的 call_static_method
-                let result = env.call_static_method(
-                    service_class, 
-                    "getSerialNumber", 
-                    "()Ljava/lang/String;", 
-                    &[]
+                // 调用 MainActivity 的实例方法 getSerialNumber()
+                let result = env.call_method(
+                    context,                           // <--- Activity 对象
+                    "getSerialNumber",                 // 方法名
+                    "()Ljava/lang/String;",            // 签名
+                    &[],                               // 参数为空
                 );
-                
+
                 let serial_obj = match result {
                     Ok(r) => r.l().unwrap_or(JObject::null()),
                     Err(e) => {
-                        log::error!("call_static_method failed: {}", e);
+                        log::error!("call_method failed: {}", e);
                         return None;
                     }
                 };
 
                 if serial_obj.is_null() {
-                    log::warn!("getSerialNumber returned null");
+                    log::warn!("getSerialNumber 返回 null");
                     return None;
                 }
 

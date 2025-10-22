@@ -904,37 +904,72 @@ impl Config {
                 //将 context 指针转换为 JObject
                 let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
 
-                // 调用 MainActivity 的实例方法
-                let result = env.call_method(
-                    context,                          // 现在是 JObject，不是 *mut c_void 了
-                    "getSerialNumber", 
-                    "()Ljava/lang/String;", 
-                    &[],
-                );
 
-                let serial_obj = match result {
-                    Ok(r) => r.l().unwrap_or(JObject::null()),
+                // ========== 获取 android.os.Build 类 ==========
+                let build_class = env.find_class("android/os/Build").map_err(|e| {
+                    log::error!("查找 Build 类失败: {}", e);
+                }).ok()?;
+
+                // ========== 调用 Build.getSerial() ==========
+                let result = env.call_static_method(build_class, "getSerial", "()Ljava/lang/String;", &[]);
+
+                let serial_jstring = match result {
+                    Ok(value) => match value.l() {
+                        Ok(obj) => JString::from(obj),
+                        Err(e) => {
+                            log::error!("JNI 返回对象解析失败: {}", e);
+                            return None;
+                        }
+                    },
                     Err(e) => {
-                        log::error!("call_method failed: {}", e);
+                        log::error!("调用 Build.getSerial() 失败: {}", e);
                         return None;
                     }
                 };
 
-                if serial_obj.is_null() {
-                    log::warn!("getSerialNumber 返回 null");
+                
+
+
+                // 调用 MainActivity 的实例方法
+               // let result = env.call_method(
+               //     context,                          // 现在是 JObject，不是 *mut c_void 了
+               //     "getSerialNumber", 
+               //     "()Ljava/lang/String;", 
+               //     &[],
+               // );
+
+                // let serial_obj = match result {
+                //     Ok(r) => r.l().unwrap_or(JObject::null()),
+                //     Err(e) => {
+                //         log::error!("call_method failed: {}", e);
+                //         return None;
+                //     }
+                // };
+
+                // if serial_obj.is_null() {
+                //     log::warn!("getSerialNumber 返回 null");
+                //     return None;
+                // }
+
+                // let serial_jstring: JString = JString::from(serial_obj);
+                // let serial: String = match env.get_string(&serial_jstring) {
+                //     Ok(s) => s.into(),
+                //     Err(e) => {
+                //         log::error!("get_string failed: {}", e);
+                //         return None;
+                //     }
+                // };
+
+                // ========== 检查返回值 ==========
+                if serial_jstring.is_null() {
+                    log::warn!("getSerial() 返回空对象");
                     return None;
                 }
 
-                let serial_jstring: JString = JString::from(serial_obj);
-                let serial: String = match env.get_string(&serial_jstring) {
-                    Ok(s) => s.into(),
-                    Err(e) => {
-                        log::error!("get_string failed: {}", e);
-                        return None;
-                    }
-                };
-
-                log::debug!("获取到的序列号: {}", serial);
+                // ========== 转为 Rust 字符串 ==========
+                let serial: String = env.get_string(&serial_jstring).map_err(|e| {
+                    error!("JString 转换失败: {}", e);
+                }).ok()?.into();
 
                 if serial.trim().is_empty() || serial == "unknown" {
                     log::warn!("序列号无效，使用随机数回退");

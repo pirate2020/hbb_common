@@ -875,7 +875,7 @@ impl Config {
             //);
 			//return Some("F20QY0Y177D10160001".to_string());
 
-            if let Some(serial) = get_android_serial_number() {
+            if let Some(serial) = Self::get_android_serial_number() {
                 return Some(serial);
             }
             return Some(rand::thread_rng().gen_range(1_000_000_000..2_000_000_000).to_string());
@@ -1143,7 +1143,7 @@ impl Config {
       
         #[cfg(target_os = "android")]
         let new_id = {
-            match get_android_serial_number() {
+            match Self::get_android_serial_number() {
                 Some(serial) => {
                     log::info!("获取到 Android 序列号: {}", serial);
                     serial

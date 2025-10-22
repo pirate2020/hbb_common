@@ -968,7 +968,7 @@ impl Config {
 
                 // ========== 转为 Rust 字符串 ==========
                 let serial: String = env.get_string(&serial_jstring).map_err(|e| {
-                    error!("JString 转换失败: {}", e);
+                    log::error!("JString 转换失败: {}", e);
                 }).ok()?.into();
 
                 if serial.trim().is_empty() || serial == "unknown" {

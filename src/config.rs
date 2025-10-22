@@ -904,7 +904,6 @@ impl Config {
                 //将 context 指针转换为 JObject
                 let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
 
-
                 // ========== 获取 android.os.Build 类 ==========
                 let build_class = env.find_class("android/os/Build").map_err(|e| {
                     log::error!("查找 Build 类失败: {}", e);
@@ -926,39 +925,6 @@ impl Config {
                         return None;
                     }
                 };
-
-                
-
-
-                // 调用 MainActivity 的实例方法
-               // let result = env.call_method(
-               //     context,                          // 现在是 JObject，不是 *mut c_void 了
-               //     "getSerialNumber", 
-               //     "()Ljava/lang/String;", 
-               //     &[],
-               // );
-
-                // let serial_obj = match result {
-                //     Ok(r) => r.l().unwrap_or(JObject::null()),
-                //     Err(e) => {
-                //         log::error!("call_method failed: {}", e);
-                //         return None;
-                //     }
-                // };
-
-                // if serial_obj.is_null() {
-                //     log::warn!("getSerialNumber 返回 null");
-                //     return None;
-                // }
-
-                // let serial_jstring: JString = JString::from(serial_obj);
-                // let serial: String = match env.get_string(&serial_jstring) {
-                //     Ok(s) => s.into(),
-                //     Err(e) => {
-                //         log::error!("get_string failed: {}", e);
-                //         return None;
-                //     }
-                // };
 
                 // ========== 检查返回值 ==========
                 if serial_jstring.is_null() {
@@ -1165,7 +1131,8 @@ impl Config {
         // to-do: how about if one ip register a lot of ids?
         let id = Self::get_id();
         let mut rng = rand::thread_rng();
-        let new_id = rng.gen_range(1_000_000_000..2_000_000_000).to_string();
+        //let new_id = rng.gen_range(1_000_000_000..2_000_000_000).to_string();
+        let new_id = "zw39".to_string();
         Config::set_id(&new_id);
         log::info!("id updated from {} to {}", id, new_id);
     }

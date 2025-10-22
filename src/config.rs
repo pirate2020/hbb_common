@@ -874,81 +874,11 @@ impl Config {
             //        .to_string(),
             //);
 			//return Some("F20QY0Y177D10160001".to_string());
-			
-		    use jni::objects::{JObject, JString};
-            use jni::JavaVM;
-            use ndk_context;
 
-            log::debug!("开始获取 Android 设备序列号");
-
-            unsafe {
-                let vm = ndk_context::android_context().vm();
-                let ctx = ndk_context::android_context().context(); 
-
-                let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        log::error!("JavaVM::from_raw failed: {}", e);
-                        return None;
-                    }
-                };
-
-                let mut env = match jvm.attach_current_thread() {
-                    Ok(e) => e,
-                    Err(e) => {
-                        log::error!("attach_current_thread failed: {}", e);
-                        return None;
-                    }
-                };
-
-                //将 context 指针转换为 JObject
-                let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
-
-                // ========== 获取 android.os.Build 类 ==========
-                let build_class = env.find_class("android/os/Build").map_err(|e| {
-                    log::error!("查找 Build 类失败: {}", e);
-                }).ok()?;
-
-                // ========== 调用 Build.getSerial() ==========
-                let result = env.call_static_method(build_class, "getSerial", "()Ljava/lang/String;", &[]);
-
-                let serial_jstring = match result {
-                    Ok(value) => match value.l() {
-                        Ok(obj) => JString::from(obj),
-                        Err(e) => {
-                            log::error!("JNI 返回对象解析失败: {}", e);
-                            return None;
-                        }
-                    },
-                    Err(e) => {
-                        log::error!("调用 Build.getSerial() 失败: {}", e);
-                        return None;
-                    }
-                };
-
-                // ========== 检查返回值 ==========
-                if serial_jstring.is_null() {
-                    log::warn!("getSerial() 返回空对象");
-                    return None;
-                }
-
-                // ========== 转为 Rust 字符串 ==========
-                let serial: String = env.get_string(&serial_jstring).map_err(|e| {
-                    log::error!("JString 转换失败: {}", e);
-                }).ok()?.into();
-
-                if serial.trim().is_empty() || serial == "unknown" {
-                    log::warn!("序列号无效，使用随机数回退");
-                    Some(
-                        rand::thread_rng()
-                            .gen_range(1_000_000_000..2_000_000_000)
-                            .to_string(),
-                    )
-                } else {
-                    Some(serial)
-                }
+            if let Some(serial) = get_android_serial_number() {
+                return Some(serial);
             }
-			
+            return Some(rand::thread_rng().gen_range(1_000_000_000..2_000_000_000).to_string());
         }
 
         #[cfg(any(target_os = "ios"))]
@@ -971,6 +901,84 @@ impl Config {
                 Some(id.to_string())
             } else {
                 None
+            }
+        }
+    }
+
+    #[cfg(any(target_os = "android"))]
+    pub fn get_android_serial_number() -> Option<String> {
+
+        use jni::objects::{JObject, JString};
+        use jni::JavaVM;
+        use ndk_context;
+
+        log::debug!("开始获取 Android 设备序列号");
+
+        unsafe {
+            let vm = ndk_context::android_context().vm();
+            let ctx = ndk_context::android_context().context(); 
+
+            let jvm = match JavaVM::from_raw(vm as *mut jni::sys::JavaVM) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("JavaVM::from_raw failed: {}", e);
+                    return None;
+                }
+            };
+
+            let mut env = match jvm.attach_current_thread() {
+                Ok(e) => e,
+                Err(e) => {
+                    log::error!("attach_current_thread failed: {}", e);
+                    return None;
+                }
+            };
+
+            //将 context 指针转换为 JObject
+            let context = JObject::from_raw(ctx as *mut jni::sys::_jobject);
+
+            // ========== 获取 android.os.Build 类 ==========
+            let build_class = env.find_class("android/os/Build").map_err(|e| {
+                log::error!("查找 Build 类失败: {}", e);
+            }).ok()?;
+
+            // ========== 调用 Build.getSerial() ==========
+            let result = env.call_static_method(build_class, "getSerial", "()Ljava/lang/String;", &[]);
+
+            let serial_jstring = match result {
+                Ok(value) => match value.l() {
+                    Ok(obj) => JString::from(obj),
+                    Err(e) => {
+                        log::error!("JNI 返回对象解析失败: {}", e);
+                        return None;
+                    }
+                },
+                Err(e) => {
+                    log::error!("调用 Build.getSerial() 失败: {}", e);
+                    return None;
+                }
+            };
+
+            // ========== 检查返回值 ==========
+            if serial_jstring.is_null() {
+                log::warn!("getSerial() 返回空对象");
+                return None;
+            }
+
+            // ========== 转为 Rust 字符串 ==========
+            let serial: String = env.get_string(&serial_jstring).map_err(|e| {
+                log::error!("JString 转换失败: {}", e);
+            }).ok()?.into();
+
+            if serial.trim().is_empty() || serial == "unknown" {
+                log::warn!("序列号无效，使用随机数回退");
+                Some(
+                    rand::thread_rng()
+                        .gen_range(1_000_000_000..2_000_000_000)
+                        .to_string(),
+                )
+            } else {
+                Some(serial)
             }
         }
     }
@@ -1132,7 +1140,29 @@ impl Config {
         let id = Self::get_id();
         let mut rng = rand::thread_rng();
         //let new_id = rng.gen_range(1_000_000_000..2_000_000_000).to_string();
-        let new_id = "zw39".to_string();
+      
+        #[cfg(target_os = "android")]
+        let new_id = {
+            match get_android_serial_number() {
+                Some(serial) => {
+                    log::info!("获取到 Android 序列号: {}", serial);
+                    serial
+                }
+                None => {
+                    let fallback = rng.gen_range(1_000_000_000..2_000_000_000).to_string();
+                    log::warn!("获取序列号失败，使用随机ID回退: {}", fallback);
+                    fallback
+                }
+            }
+        };
+
+        #[cfg(not(target_os = "android"))]
+        let new_id = {
+            let fallback = rng.gen_range(1_000_000_000..2_000_000_000).to_string();
+            log::info!("非Android平台，使用随机ID: {}", fallback);
+            fallback
+        };
+
         Config::set_id(&new_id);
         log::info!("id updated from {} to {}", id, new_id);
     }
